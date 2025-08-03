@@ -10,14 +10,17 @@ const Loja = () => {
 
   useEffect(() => {
     setCarregando(true);
-    axios.get(`${process.env.BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos`)
+    axios.get(`${import.meta.env.VITE_BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos`)
       .then(res => {
         setProdutos(res.data);
         setErro(null);
       })
       .catch(err => {
-        console.error("Erro ao buscar produtos", err);
-        setErro("Erro ao carregar produtos. Tente novamente mais tarde.");
+        console.error("Erro ao buscar produtos", {
+          error: err.response?.data,
+          status: err.response?.status
+        });
+        setErro("Erro ao carregar produtos. Tente recarregar a página.");
       })
       .finally(() => setCarregando(false));
   }, []);
@@ -31,15 +34,29 @@ const Loja = () => {
   if (carregando) {
     return (
       <div className="p-4 flex justify-center items-center h-64">
-        <p className="text-lg">Carregando produtos...</p>
+        <div className="animate-pulse flex space-x-4">
+          <div className="flex-1 space-y-4 py-1">
+            <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-300 rounded"></div>
+              <div className="h-4 bg-gray-300 rounded w-5/6"></div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (erro) {
     return (
-      <div className="p-4 text-center text-red-500">
-        <p>{erro}</p>
+      <div className="p-4 text-center">
+        <p className="text-red-500 mb-4">{erro}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-gray-200 rounded"
+        >
+          Recarregar Página
+        </button>
       </div>
     );
   }
@@ -48,7 +65,6 @@ const Loja = () => {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Nossa Loja</h1>
 
-      {/* Filtros por categoria */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {categorias.map(cat => (
           <button
@@ -62,7 +78,6 @@ const Loja = () => {
         ))}
       </div>
 
-      {/* Listagem de produtos */}
       {produtosFiltrados.length === 0 ? (
         <p className="text-center text-gray-500">Nenhum produto encontrado nesta categoria.</p>
       ) : (

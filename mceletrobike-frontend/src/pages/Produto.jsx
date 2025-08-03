@@ -14,13 +14,20 @@ const Produto = () => {
     setCarregando(true);
     setErro(null);
     
-    axios.get(`${process.env.BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos/${id}`)
+    axios.get(`${import.meta.env.VITE_BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos/${id}`)
       .then(res => {
         setProduto(res.data);
       })
       .catch(err => {
-        console.error("Erro ao carregar produto", err);
-        setErro("Não foi possível carregar os detalhes do produto.");
+        const mensagem = err.response?.status === 404 
+          ? "Produto não encontrado" 
+          : "Erro ao carregar dados do produto";
+        setErro(mensagem);
+        console.error("Erro ao carregar produto:", {
+          error: err.response?.data,
+          status: err.response?.status,
+          id: id
+        });
       })
       .finally(() => setCarregando(false));
   }, [id]);
@@ -37,6 +44,12 @@ const Produto = () => {
     return (
       <div className="p-6 max-w-3xl mx-auto text-center text-red-500">
         <p>{erro}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-gray-200 rounded"
+        >
+          Tentar novamente
+        </button>
       </div>
     );
   }
@@ -44,7 +57,7 @@ const Produto = () => {
   if (!produto) {
     return (
       <div className="p-6 max-w-3xl mx-auto text-center">
-        <p>Produto não encontrado.</p>
+        <p>Produto não disponível</p>
       </div>
     );
   }
