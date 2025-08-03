@@ -5,7 +5,10 @@ import ProductDetail from "./pages/ProductDetail";
 import Produto from "./pages/Produto";
 import Admin from "./pages/Admin";
 import Loja from "./pages/Loja";
-import Carrinho from "./pages/Carrinho"; // Nova importação
+import Carrinho from "./pages/Carrinho";
+import PagamentoSucesso from './pages/PagamentoSucesso';
+import PagamentoFalha from './pages/PagamentoFalha';
+import PagamentoPendente from './pages/PagamentoPendente';
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 
@@ -25,7 +28,12 @@ function App() {
             
             <Route path="/admin" element={<Admin />} />
             <Route path="/loja" element={<Loja />} />
-            <Route path="/carrinho" element={<Carrinho />} /> {/* Nova rota adicionada */}
+            <Route path="/carrinho" element={<Carrinho />} />
+            
+            {/* Rotas de status de pagamento */}
+            <Route path="/sucesso" element={<PagamentoSucesso />} />
+            <Route path="/falha" element={<PagamentoFalha />} />
+            <Route path="/pendente" element={<PagamentoPendente />} />
           </Routes>
         </main>
         <Footer />
