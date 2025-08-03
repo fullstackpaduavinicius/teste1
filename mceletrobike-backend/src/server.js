@@ -9,74 +9,129 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-// Security Configurations
-app.use(helmet());
+// Enhanced Security Configurations
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.mercadopago.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      imgSrc: ["'self'", 'data:', 'https://*.mercadopago.com'],
+      connectSrc: ["'self'", process.env.BACKEND_URL, 'https://api.mercadopago.com']
+    }
+  }
+}));
 app.disable('x-powered-by');
 
-// CORS Configuration for Production and Development
+// Production-Grade CORS Configuration
+const corsWhitelist = [
+  process.env.FRONTEND_URL,
+  'https://www.mercadopago.com',
+  'https://api.mercadopago.com'
+];
+
+if (process.env.NODE_ENV === 'development') {
+  corsWhitelist.push('http://localhost:5173');
+}
+
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL,
-    'http://localhost:5173',
-    'https://teste1-nine-tawny.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    if (!origin || corsWhitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
-  credentials: true
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
+  credentials: true,
+  maxAge: 86400
 }));
 
-// Rate Limiting (100 requests/15min)
-app.use(rateLimit({
+// Strict Rate Limiting
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
-  message: {
-    status: 429,
-    error: "Rate limit exceeded",
-    message: "Please try again later."
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  handler: (req, res) => {
+    res.status(429).json({
+      status: 'error',
+      message: 'Too many requests, please try again later.'
+    });
   }
-}));
+});
 
-// Middlewares
+app.use('/api/', apiLimiter);
+
+// Body Parser with Size Limit
 app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Routes
+// API Routes
 app.use("/api/produtos", productRoutes);
-app.use("/api/pagamento", paymentRoutes); // Changed to singular to match frontend
+app.use("/api/pagamento", paymentRoutes);
 
-// Health Check
+// Enhanced Health Check Endpoint
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
     environment: process.env.NODE_ENV,
-    version: '1.0.0'
+    version: '1.0.0',
+    dbStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    uptime: process.uptime()
   });
 });
 
-// Error Handling
+// Production Error Handling
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
-  res.status(500).json({
+  console.error('Server Error:', {
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    method: req.method,
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+
+  res.status(err.status || 500).json({
     status: 'error',
-    message: 'Internal server error'
+    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message
   });
 });
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB Atlas');
-  const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+// MongoDB Connection with Retry Logic
+const connectWithRetry = () => {
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+    w: 'majority'
+  })
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    setTimeout(connectWithRetry, 5000);
   });
-})
-.catch(err => {
-  console.error('❌ MongoDB connection error:', err.message);
-  process.exit(1);
+};
+
+connectWithRetry();
+
+// Server Initialization
+const PORT = process.env.PORT || 4000;
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+});
+
+// Graceful Shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
 });
