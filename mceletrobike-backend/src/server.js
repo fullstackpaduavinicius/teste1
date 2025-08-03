@@ -9,15 +9,19 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-// Configurações de Segurança
+// Security Configurations
 app.use(helmet());
 app.disable('x-powered-by');
 
-// CORS Configurado para Produção
+// CORS Configuration for Production and Development
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: [
+    process.env.FRONTEND_URL,
+    'http://localhost:5173',
+    'https://teste1-nine-tawny.vercel.app'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
   credentials: true
 }));
 
@@ -28,37 +32,37 @@ app.use(rateLimit({
   standardHeaders: true,
   message: {
     status: 429,
-    error: "Limite de requisições excedido",
-    message: "Por favor, tente novamente mais tarde."
+    error: "Rate limit exceeded",
+    message: "Please try again later."
   }
 }));
 
 // Middlewares
 app.use(express.json({ limit: '10kb' }));
 
-// Rotas
+// Routes
 app.use("/api/produtos", productRoutes);
-app.use("/api/pagamentos", paymentRoutes);
+app.use("/api/pagamento", paymentRoutes); // Changed to singular to match frontend
 
 // Health Check
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
-    ambiente: process.env.NODE_ENV,
-    versao: '1.0.0'
+    environment: process.env.NODE_ENV,
+    version: '1.0.0'
   });
 });
 
-// Tratamento de Erros
+// Error Handling
 app.use((err, req, res, next) => {
-  console.error('Erro:', err.stack);
+  console.error('Error:', err.stack);
   res.status(500).json({
     status: 'error',
-    message: 'Erro interno no servidor'
+    message: 'Internal server error'
   });
 });
 
-// Conexão com MongoDB
+// MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -66,13 +70,13 @@ mongoose.connect(process.env.MONGODB_URI, {
   socketTimeoutMS: 45000
 })
 .then(() => {
-  console.log('✅ Conectado ao MongoDB Atlas');
+  console.log('✅ Connected to MongoDB Atlas');
   const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando em ${process.env.BACKEND_URL}`);
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 })
 .catch(err => {
-  console.error('❌ Falha na conexão com MongoDB:', err.message);
+  console.error('❌ MongoDB connection error:', err.message);
   process.exit(1);
 });

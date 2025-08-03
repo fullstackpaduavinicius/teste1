@@ -9,20 +9,24 @@ const Loja = () => {
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    setCarregando(true);
-    axios.get(`${import.meta.env.VITE_BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos`)
-      .then(res => {
-        setProdutos(res.data);
+    const fetchProdutos = async () => {
+      try {
+        setCarregando(true);
+        const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/produtos`);
+        setProdutos(response.data);
         setErro(null);
-      })
-      .catch(err => {
-        console.error("Erro ao buscar produtos", {
-          error: err.response?.data,
-          status: err.response?.status
+      } catch (err) {
+        console.error("Erro ao buscar produtos:", {
+          status: err.response?.status,
+          data: err.response?.data
         });
-        setErro("Erro ao carregar produtos. Tente recarregar a página.");
-      })
-      .finally(() => setCarregando(false));
+        setErro("Erro ao carregar produtos. Por favor, tente novamente.");
+      } finally {
+        setCarregando(false);
+      }
+    };
+
+    fetchProdutos();
   }, []);
 
   const categorias = ["Todos", ...new Set(produtos.map(p => p.category))];
@@ -34,15 +38,7 @@ const Loja = () => {
   if (carregando) {
     return (
       <div className="p-4 flex justify-center items-center h-64">
-        <div className="animate-pulse flex space-x-4">
-          <div className="flex-1 space-y-4 py-1">
-            <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-300 rounded"></div>
-              <div className="h-4 bg-gray-300 rounded w-5/6"></div>
-            </div>
-          </div>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black"></div>
       </div>
     );
   }
@@ -53,7 +49,7 @@ const Loja = () => {
         <p className="text-red-500 mb-4">{erro}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-gray-200 rounded"
+          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
         >
           Recarregar Página
         </button>
@@ -70,8 +66,10 @@ const Loja = () => {
           <button
             key={cat}
             onClick={() => setCategoriaAtiva(cat)}
-            className={`px-4 py-2 rounded-full border transition-colors
-              ${categoriaAtiva === cat ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"}`}
+            className={`px-4 py-2 rounded-full transition-colors
+              ${categoriaAtiva === cat 
+                ? "bg-black text-white" 
+                : "bg-gray-100 text-black hover:bg-gray-200"}`}
           >
             {cat}
           </button>
@@ -79,18 +77,15 @@ const Loja = () => {
       </div>
 
       {produtosFiltrados.length === 0 ? (
-        <p className="text-center text-gray-500">Nenhum produto encontrado nesta categoria.</p>
+        <p className="text-center text-gray-500 py-8">Nenhum produto encontrado.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {produtosFiltrados.map(produto => (
             <div key={produto._id} className="border rounded-xl p-4 shadow hover:shadow-lg transition">
               <img 
-                src={produto.imageUrl} 
+                src={produto.imageUrl || 'https://via.placeholder.com/300x200?text=Produto+sem+imagem'} 
                 alt={produto.name} 
                 className="w-full h-48 object-cover rounded-md mb-3"
-                onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/300x200?text=Produto+sem+imagem';
-                }}
               />
               <h2 className="text-lg font-semibold">{produto.name}</h2>
               <p className="text-sm text-gray-600 line-clamp-2">{produto.description}</p>

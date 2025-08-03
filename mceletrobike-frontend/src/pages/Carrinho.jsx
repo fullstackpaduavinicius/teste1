@@ -29,23 +29,25 @@ const Carrinho = () => {
       // Preparar dados para envio
       const produtosParaEnvio = itens.map(item => ({
         id: item._id,
-        title: item.name,
+        title: item.name.substring(0, 250), // Limita o título para o Mercado Pago
         unit_price: parseFloat(item.price),
-        quantity: item.quantidade || 1,
-        description: item.description || `Produto: ${item.name}`,
+        quantity: Number(item.quantidade || 1),
+        currency_id: 'BRL',
+        description: item.description?.substring(0, 250) || `Produto: ${item.name}`,
         picture_url: item.imageUrl || '',
         category_id: item.category || 'eletronics'
       }));
 
-      // Usar axios para melhor tratamento de erros
+      // Chamada à API com tratamento de erros aprimorado
       const response = await axios.post(
         `${import.meta.env.VITE_BACKEND_URL}/api/pagamento/create_preference`,
         { items: produtosParaEnvio },
         {
           headers: {
             "Content-Type": "application/json",
-            "X-Idempotency-Key": localStorage.getItem('idempotencyKey') || crypto.randomUUID()
-          }
+            "X-Idempotency-Key": crypto.randomUUID() // Gera uma chave única para cada requisição
+          },
+          timeout: 10000 // Timeout de 10 segundos
         }
       );
 
@@ -55,41 +57,40 @@ const Carrinho = () => {
         throw new Error("URL de pagamento não disponível na resposta");
       }
 
-      // Usar sandbox em desenvolvimento
+      // Salvar informações do pedido antes de limpar o carrinho
+      localStorage.setItem('lastOrder', JSON.stringify({
+        items: itens,
+        total: calcularTotal(),
+        timestamp: new Date().toISOString(),
+        preferenceId: paymentData.id
+      }));
+
+      limparCarrinho();
+      setSuccess("Redirecionando para o pagamento...");
+
+      // Redirecionamento seguro para o Mercado Pago
       const paymentUrl = import.meta.env.DEV 
         ? paymentData.sandbox_init_point 
         : paymentData.init_point;
 
-      // Salvar informações do carrinho no localStorage antes de limpar
-      localStorage.setItem('lastOrder', JSON.stringify({
-        items: itens,
-        total: calcularTotal(),
-        timestamp: new Date().toISOString()
-      }));
-
-      // Limpar carrinho
-      limparCarrinho();
-      setSuccess("Redirecionando para o pagamento...");
-
-      // Abrir checkout em nova aba com segurança
-      const newWindow = window.open(paymentUrl, '_blank', 'noopener,noreferrer');
-      
-      if (!newWindow) {
-        navigate('/checkout/redirect', { state: { paymentUrl } });
-      }
+      window.location.href = paymentUrl; // Melhor para fluxo de pagamento
 
     } catch (error) {
-      console.error("Erro no pagamento:", {
-        message: error.response?.data?.message || error.message,
+      console.error("Erro no processamento do pagamento:", {
+        message: error.message,
         status: error.response?.status,
         data: error.response?.data,
-        time: new Date().toISOString()
+        timestamp: new Date().toISOString()
       });
       
-      const errorMessage = error.response?.data?.message || 
-                         error.response?.data?.error?.message || 
-                         error.message || 
-                         "Erro ao finalizar pedido";
+      let errorMessage = "Erro ao processar pagamento";
+      if (error.response) {
+        errorMessage = error.response.data?.message || 
+                      error.response.data?.error?.message || 
+                      "Erro na comunicação com o servidor";
+      } else if (error.request) {
+        errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
+      }
       
       setError(errorMessage);
       
@@ -104,7 +105,13 @@ const Carrinho = () => {
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+          <p>{error}</p>
+          <button 
+            onClick={() => setError(null)}
+            className="mt-2 text-sm underline"
+          >
+            Fechar
+          </button>
         </div>
       )}
 
