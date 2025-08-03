@@ -15,89 +15,81 @@ const Carrinho = () => {
   };
 
   const finalizarPedido = async () => {
-    setError(null);
-    setSuccess(null);
+  setError(null);
+  setSuccess(null);
+  
+  if (itens.length === 0) {
+    setError("Seu carrinho está vazio");
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const produtosParaEnvio = itens.map(item => ({
+      id: item._id,
+      title: item.name.substring(0, 250),
+      unit_price: parseFloat(item.price),
+      quantity: Number(item.quantidade || 1),
+      description: item.description?.substring(0, 250) || `Produto: ${item.name}`,
+      picture_url: item.imageUrl || '',
+      category_id: item.category || 'eletronics'
+    }));
+
+    const response = await axios.post(
+      `${import.meta.env.VITE_BACKEND_URL}/api/pagamento/create_preference`,
+      { items: produtosParaEnvio },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-ID": crypto.randomUUID() // Identificador único
+        },
+        timeout: 10000 // Timeout de 10 segundos
+      }
+    );
+
+    if (!response.data?.init_point) {
+      throw new Error("Resposta inválida do servidor");
+    }
+
+    // Salvar dados temporários antes do redirecionamento
+    sessionStorage.setItem('pendingOrder', JSON.stringify({
+      items: itens,
+      total: calcularTotal(),
+      preferenceId: response.data.id
+    }));
+
+    // Redirecionamento seguro
+    window.location.href = import.meta.env.DEV 
+      ? response.data.sandbox_init_point 
+      : response.data.init_point;
+
+  } catch (error) {
+    let errorMessage = "Erro ao processar pagamento";
     
-    if (itens.length === 0) {
-      setError("Seu carrinho está vazio");
-      return;
+    if (error.response) {
+      // Erro da API
+      errorMessage = error.response.data?.message || 
+                   error.response.data?.error?.message || 
+                   `Erro ${error.response.status}`;
+    } else if (error.request) {
+      // Sem resposta do servidor
+      errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
     }
 
-    setIsLoading(true);
+    console.error("Erro no pagamento:", {
+      error: error.message,
+      response: error.response?.data,
+      timestamp: new Date().toISOString()
+    });
 
-    try {
-      // Preparar dados para envio
-      const produtosParaEnvio = itens.map(item => ({
-        id: item._id,
-        title: item.name.substring(0, 250), // Limita o título para o Mercado Pago
-        unit_price: parseFloat(item.price),
-        quantity: Number(item.quantidade || 1),
-        currency_id: 'BRL',
-        description: item.description?.substring(0, 250) || `Produto: ${item.name}`,
-        picture_url: item.imageUrl || '',
-        category_id: item.category || 'eletronics'
-      }));
-
-      // Chamada à API com tratamento de erros aprimorado
-      const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/pagamento/create_preference`,
-        { items: produtosParaEnvio },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Idempotency-Key": crypto.randomUUID() // Gera uma chave única para cada requisição
-          },
-          timeout: 10000 // Timeout de 10 segundos
-        }
-      );
-
-      const paymentData = response.data;
-
-      if (!paymentData.init_point && !paymentData.sandbox_init_point) {
-        throw new Error("URL de pagamento não disponível na resposta");
-      }
-
-      // Salvar informações do pedido antes de limpar o carrinho
-      localStorage.setItem('lastOrder', JSON.stringify({
-        items: itens,
-        total: calcularTotal(),
-        timestamp: new Date().toISOString(),
-        preferenceId: paymentData.id
-      }));
-
-      limparCarrinho();
-      setSuccess("Redirecionando para o pagamento...");
-
-      // Redirecionamento seguro para o Mercado Pago
-      const paymentUrl = import.meta.env.DEV 
-        ? paymentData.sandbox_init_point 
-        : paymentData.init_point;
-
-      window.location.href = paymentUrl; // Melhor para fluxo de pagamento
-
-    } catch (error) {
-      console.error("Erro no processamento do pagamento:", {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      let errorMessage = "Erro ao processar pagamento";
-      if (error.response) {
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error?.message || 
-                      "Erro na comunicação com o servidor";
-      } else if (error.request) {
-        errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
-      }
-      
-      setError(errorMessage);
-      
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setError(errorMessage);
+    limparCarrinho(); // Limpa o carrinho em caso de erro
+    
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
