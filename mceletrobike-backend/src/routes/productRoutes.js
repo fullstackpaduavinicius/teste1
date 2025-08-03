@@ -57,4 +57,37 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Deletar produto
+router.delete('/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ 
+        status: "erro", 
+        mensagem: "ID do produto inválido" 
+      });
+    }
+
+    const produto = await Product.findByIdAndDelete(req.params.id);
+    
+    if (!produto) {
+      return res.status(404).json({ 
+        status: "erro", 
+        mensagem: "Produto não encontrado" 
+      });
+    }
+
+    res.status(200).json({ 
+      status: "sucesso", 
+      mensagem: "Produto deletado com sucesso",
+      data: null
+    });
+  } catch (error) {
+    console.error('Erro ao deletar produto:', error);
+    res.status(500).json({ 
+      status: "erro", 
+      mensagem: "Erro no servidor ao deletar produto" 
+    });
+  }
+});
+
 module.exports = router;

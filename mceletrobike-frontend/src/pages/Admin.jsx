@@ -56,7 +56,6 @@ const Admin = () => {
         category: "",
         imageUrl: "",
       });
-      // Atualiza a lista de produtos após cadastrar
       fetchProducts();
     } catch (err) {
       setMessage("❌ Erro ao cadastrar produto.");
@@ -66,12 +65,13 @@ const Admin = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Tem certeza que deseja excluir este produto?")) {
       try {
+        setMessage("⌛ Excluindo produto...");
         await axios.delete(`${API_URL}/api/produtos/${id}`);
         setMessage("✅ Produto excluído com sucesso!");
-        // Atualiza a lista de produtos após excluir
         fetchProducts();
       } catch (err) {
-        setMessage("❌ Erro ao excluir produto.");
+        console.error("Erro detalhado:", err.response?.data || err.message);
+        setMessage(`❌ Erro: ${err.response?.data?.mensagem || 'Falha ao excluir produto'}`);
       }
     }
   };
