@@ -4,12 +4,13 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
 const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-// === ✅ Helmet com fallback seguro e filtro de valores falsy ===
+// Segurança com Helmet + Content Security Policy (CSP)
 const connectSrcList = [
   "'self'",
   process.env.BACKEND_URL || 'https://mceletrobike-backend.onrender.com',
@@ -29,7 +30,7 @@ app.use(helmet({
 }));
 app.disable('x-powered-by');
 
-// === CORS config ===
+// Configurar CORS
 const corsOptions = {
   origin: [
     process.env.FRONTEND_URL,
@@ -37,26 +38,21 @@ const corsOptions = {
     'http://localhost:5173',
     'https://www.mercadopago.com',
     'https://api.mercadopago.com'
-  ],
+  ].filter(Boolean),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'X-Request-ID',
-    'x-idempotency-key',
-    'Accept'
+    'Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID',
+    'x-idempotency-key', 'Accept'
   ],
   exposedHeaders: ['Content-Length', 'X-Request-ID'],
   credentials: true,
   maxAge: 86400,
   optionsSuccessStatus: 204
 };
-
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// === Rate limiting ===
+// Limite de requisições para evitar abuso
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -72,15 +68,15 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// === Body parser ===
+// Parsers para JSON e URL-encoded
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// === Routes ===
-app.use("/api/produtos", productRoutes);
-app.use("/api/pagamento", paymentRoutes);
+// ** IMPORTANTISSIMO: use rotas SOMENTE com caminhos relativos **
+app.use('/api/produtos', productRoutes);
+app.use('/api/pagamento', paymentRoutes);
 
-// === Health check ===
+// Health check simples
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
@@ -91,7 +87,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// === Error handler ===
+// Tratador global de erros
 app.use((err, req, res, next) => {
   console.error('Server Error:', {
     timestamp: new Date().toISOString(),
@@ -100,14 +96,13 @@ app.use((err, req, res, next) => {
     error: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
-
   res.status(err.status || 500).json({
     status: 'error',
     message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message
   });
 });
 
-// === MongoDB connection ===
+// Conexão com MongoDB Atlas com retry automático
 const connectWithRetry = () => {
   mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -123,16 +118,14 @@ const connectWithRetry = () => {
     setTimeout(connectWithRetry, 5000);
   });
 };
-
 connectWithRetry();
 
-// === Start server ===
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
 
-// === Graceful shutdown ===
+// Graceful shutdown para SIGTERM
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
