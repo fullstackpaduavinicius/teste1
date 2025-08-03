@@ -6,28 +6,67 @@ import { useCarrinhoStore } from "../store/carrinho";
 const Produto = () => {
   const { id } = useParams();
   const [produto, setProduto] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
   const adicionar = useCarrinhoStore((state) => state.adicionar);
 
   useEffect(() => {
-    axios.get(`http://localhost:4000/api/produtos`)
+    setCarregando(true);
+    setErro(null);
+    
+    axios.get(`${process.env.BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos/${id}`)
       .then(res => {
-        const encontrado = res.data.find(p => p._id === id);
-        setProduto(encontrado);
+        setProduto(res.data);
       })
-      .catch(err => console.error("Erro ao carregar produto", err));
+      .catch(err => {
+        console.error("Erro ao carregar produto", err);
+        setErro("Não foi possível carregar os detalhes do produto.");
+      })
+      .finally(() => setCarregando(false));
   }, [id]);
 
-  if (!produto) return <p>Carregando...</p>;
+  if (carregando) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto text-center">
+        <p>Carregando detalhes do produto...</p>
+      </div>
+    );
+  }
+
+  if (erro) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto text-center text-red-500">
+        <p>{erro}</p>
+      </div>
+    );
+  }
+
+  if (!produto) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto text-center">
+        <p>Produto não encontrado.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <img src={produto.imageUrl} alt={produto.name} className="w-full h-72 object-cover rounded-lg mb-4" />
+      <img 
+        src={produto.imageUrl} 
+        alt={produto.name} 
+        className="w-full h-72 object-cover rounded-lg mb-4"
+        onError={(e) => {
+          e.target.src = 'https://via.placeholder.com/600x400?text=Imagem+indisponível';
+        }}
+      />
       <h1 className="text-3xl font-bold mb-2">{produto.name}</h1>
-      <p className="text-gray-700 mb-4">{produto.description}</p>
-      <p className="text-2xl font-bold text-green-600 mb-4">R$ {produto.price.toFixed(2)}</p>
+      <p className="text-gray-700 mb-4 whitespace-pre-line">{produto.description}</p>
+      <p className="text-2xl font-bold text-green-600 mb-4">
+        R$ {produto.price.toFixed(2).replace('.', ',')}
+      </p>
       <button
         onClick={() => adicionar(produto)}
-        className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800"
+        className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors"
       >
         Adicionar ao carrinho
       </button>

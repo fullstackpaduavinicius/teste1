@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://mceletrobike-backend.onrender.com";
+
 const Admin = () => {
   const [form, setForm] = useState({
     name: "",
@@ -20,7 +22,7 @@ const Admin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:4000/api/produtos", {
+      const res = await axios.post(`${API_URL}/api/produtos`, {
         ...form,
         price: parseFloat(form.price),
         stock: parseInt(form.stock),

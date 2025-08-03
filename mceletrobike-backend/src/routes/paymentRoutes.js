@@ -1,5 +1,6 @@
 const express = require('express');
 const { MercadoPagoConfig, Preference } = require('mercadopago');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const router = express.Router();
@@ -8,101 +9,174 @@ const router = express.Router();
 const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN,
   options: { 
-    timeout: 5000,
-    idempotencyKey: `mp-${Date.now()}` // Evita requisições duplicadas
+    timeout: 10000, // Timeout aumentado
+    idempotencyKey: `mp-${crypto.randomUUID()}` // ID único mais seguro
   }
 });
 
-// Middleware de validação
-const validatePaymentData = (req, res, next) => {
+// Middleware de validação aprimorado
+const validarDadosPagamento = (req, res, next) => {
   const { produtos } = req.body;
   
   if (!produtos || !Array.isArray(produtos)) {
     return res.status(400).json({ 
       status: "400",
-      error: "bad_request",
+      error: "requisicao_invalida",
       message: "Lista de produtos inválida",
-      cause: [{ code: "400001", message: "Produtos não fornecidos" }]
+      causa: [{ 
+        codigo: "400001", 
+        descricao: "O campo 'produtos' deve ser um array válido",
+        recuperavel: true
+      }]
     });
   }
 
-  // Validação adicional dos produtos
-  for (const produto of produtos) {
-    if (!produto.preco || isNaN(produto.preco)) {
-      return res.status(400).json({
-        status: "400",
-        error: "bad_request",
-        message: "Preço inválido para o produto",
-        cause: [{ code: "400002", message: "Preço deve ser um número válido" }]
+  if (produtos.length === 0) {
+    return res.status(400).json({
+      status: "400",
+      error: "carrinho_vazio",
+      message: "O carrinho não pode estar vazio",
+      causa: [{
+        codigo: "400002",
+        descricao: "Adicione itens ao carrinho antes de prosseguir",
+        recuperavel: true
+      }]
+    });
+  }
+
+  // Validação detalhada de cada produto
+  const errosProdutos = produtos.map((produto, index) => {
+    const erros = [];
+    
+    if (!produto.id || typeof produto.id !== 'string') {
+      erros.push({
+        campo: "id",
+        problema: "ID do produto ausente ou inválido",
+        codigo: "400010"
       });
     }
+
+    if (!produto.nome || typeof produto.nome !== 'string') {
+      erros.push({
+        campo: "nome",
+        problema: "Nome do produto ausente ou inválido",
+        codigo: "400011"
+      });
+    }
+
+    if (!produto.preco || isNaN(produto.preco)) {
+      erros.push({
+        campo: "preco",
+        problema: "Preço do produto ausente ou inválido",
+        codigo: "400012"
+      });
+    } else if (produto.preco <= 0) {
+      erros.push({
+        campo: "preco",
+        problema: "Preço deve ser maior que zero",
+        codigo: "400013"
+      });
+    }
+
+    return erros.length > 0 ? { item: index, erros } : null;
+  }).filter(Boolean);
+
+  if (errosProdutos.length > 0) {
+    return res.status(400).json({
+      status: "400",
+      error: "dados_produto_invalidos",
+      message: "Dados de produtos inválidos",
+      causa: errosProdutos
+    });
   }
 
   next();
 };
 
-router.post('/create_preference', validatePaymentData, async (req, res) => {
+// Rota para criar preferência de pagamento
+router.post('/criar_preferencia', validarDadosPagamento, async (req, res) => {
   try {
-    const { produtos } = req.body;
+    const { produtos, comprador } = req.body;
 
-    // Preparar itens para o pagamento (formato específico do MP)
-    const items = produtos.map(produto => ({
-      title: produto.nome?.substring(0, 256) || 'Produto sem nome',
+    // Preparar itens no formato esperado pelo MercadoPago
+    const itens = produtos.map(produto => ({
+      id: produto.id,
+      title: produto.nome.substring(0, 250), // Limita tamanho do título
       unit_price: parseFloat(produto.preco),
       quantity: parseInt(produto.quantidade) || 1,
       currency_id: 'BRL',
-      description: produto.descricao?.substring(0, 256) || '',
-      picture_url: produto.imageUrl || ''
+      description: produto.descricao?.substring(0, 250) || '',
+      picture_url: produto.imagemUrl || '',
+      category_id: produto.categoria || 'eletronics'
     }));
 
-    // Configuração absoluta das URLs
-    const baseUrl = process.env.FRONTEND_URL;
-    const backUrls = {
-      success: `${baseUrl}/pagamento/sucesso`,
-      failure: `${baseUrl}/pagamento/falha`,
-      pending: `${baseUrl}/pagamento/pendente`
+    // Configuração das URLs de retorno
+    const urlBase = process.env.FRONTEND_URL;
+    const urlsRetorno = {
+      success: `${urlBase}/pagamento/sucesso`,
+      failure: `${urlBase}/pagamento/erro`,
+      pending: `${urlBase}/pagamento/pendente`
     };
 
-    // Configuração da preferência (sem splitter)
-    const preference = {
-      items,
-      back_urls: backUrls,
+    // Configuração completa da preferência
+    const preferencia = {
+      items: itens,
+      back_urls: urlsRetorno,
       auto_return: 'approved',
       payment_methods: {
-        excluded_payment_types: [{ id: 'atm' }],
-        installments: 12
+        excluded_payment_types: [{ id: 'atm' }], // Exclui caixas eletrônicos
+        excluded_payment_methods: [],
+        installments: 12, // Número máximo de parcelas
+        default_installments: 1
       },
-      notification_url: `${process.env.BACKEND_URL}/api/pagamento/webhook`
+      notification_url: `${process.env.BACKEND_URL}/api/pagamento/webhook`,
+      external_reference: `pedido_${Date.now()}`,
+      statement_descriptor: 'ELETROBIKE',
+      date_of_expiration: new Date(Date.now() + 3600000 * 24).toISOString(), // Expira em 24h
+      metadata: {
+        cliente: comprador?.email || 'anonimo',
+        origem: 'site_eletrobike'
+      }
     };
 
-    const response = await new Preference(client).create({ body: preference });
+    // Criar preferência no MercadoPago
+    const resposta = await new Preference(client).create({ body: preferencia });
 
     // Resposta padronizada
     res.json({
       status: "200",
-      id: response.id,
-      init_point: response.init_point,
-      sandbox_init_point: response.sandbox_init_point
+      sucesso: true,
+      id: resposta.id,
+      url_pagamento: process.env.NODE_ENV === 'development' 
+        ? resposta.sandbox_init_point 
+        : resposta.init_point,
+      data_criacao: new Date().toISOString(),
+      expira_em: preferencia.date_of_expiration
     });
 
-  } catch (error) {
+  } catch (erro) {
     console.error('Erro no Mercado Pago:', {
-      message: error.message,
-      status: error.status,
-      cause: error.cause,
-      stack: error.stack,
-      response: error.response?.data
+      mensagem: erro.message,
+      stack: erro.stack,
+      dados: erro.response?.data,
+      timestamp: new Date().toISOString()
     });
 
-    res.status(500).json({ 
-      status: "500",
-      error: "internal_server_error",
-      message: "Erro ao criar preferência de pagamento",
-      cause: [{
-        code: error.status?.toString() || "500000",
-        message: error.message,
-        data: error.response?.data || null
-      }]
+    // Tratamento detalhado de erros
+    const status = erro.status || 500;
+    const codigoErro = erro.cause?.[0]?.code || '500000';
+    
+    res.status(status).json({ 
+      status: status.toString(),
+      sucesso: false,
+      error: "erro_processamento_pagamento",
+      message: "Falha ao criar pagamento",
+      causa: [{
+        codigo: codigoErro,
+        descricao: erro.message || "Erro desconhecido",
+        ...(erro.response?.data && { detalhes: erro.response.data })
+      }],
+      timestamp: new Date().toISOString()
     });
   }
 });

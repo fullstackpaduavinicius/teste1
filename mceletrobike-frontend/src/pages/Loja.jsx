@@ -5,11 +5,21 @@ import { Link } from "react-router-dom";
 const Loja = () => {
   const [produtos, setProdutos] = useState([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState("Todos");
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    axios.get("http://localhost:4000/api/produtos")
-      .then(res => setProdutos(res.data))
-      .catch(err => console.error("Erro ao buscar produtos", err));
+    setCarregando(true);
+    axios.get(`${process.env.BACKEND_URL || "https://mceletrobike-backend.onrender.com"}/api/produtos`)
+      .then(res => {
+        setProdutos(res.data);
+        setErro(null);
+      })
+      .catch(err => {
+        console.error("Erro ao buscar produtos", err);
+        setErro("Erro ao carregar produtos. Tente novamente mais tarde.");
+      })
+      .finally(() => setCarregando(false));
   }, []);
 
   const categorias = ["Todos", ...new Set(produtos.map(p => p.category))];
@@ -17,6 +27,22 @@ const Loja = () => {
   const produtosFiltrados = categoriaAtiva === "Todos"
     ? produtos
     : produtos.filter(p => p.category === categoriaAtiva);
+
+  if (carregando) {
+    return (
+      <div className="p-4 flex justify-center items-center h-64">
+        <p className="text-lg">Carregando produtos...</p>
+      </div>
+    );
+  }
+
+  if (erro) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        <p>{erro}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4">
@@ -37,28 +63,35 @@ const Loja = () => {
       </div>
 
       {/* Listagem de produtos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {produtosFiltrados.map(produto => (
-          <div key={produto._id} className="border rounded-xl p-4 shadow hover:shadow-lg transition">
-            <img 
-              src={produto.imageUrl} 
-              alt={produto.name} 
-              className="w-full h-48 object-cover rounded-md mb-3"
-            />
-            <h2 className="text-lg font-semibold">{produto.name}</h2>
-            <p className="text-sm text-gray-600 line-clamp-2">{produto.description}</p>
-            <p className="mt-2 font-bold text-green-600">
-              R$ {produto.price.toFixed(2).replace('.', ',')}
-            </p>
-            
-            <Link to={`/produto/${produto._id}`}>
-              <button className="mt-3 px-4 py-2 bg-black text-white rounded w-full hover:bg-gray-800 transition-colors">
-                Ver Detalhes
-              </button>
-            </Link>
-          </div>
-        ))}
-      </div>
+      {produtosFiltrados.length === 0 ? (
+        <p className="text-center text-gray-500">Nenhum produto encontrado nesta categoria.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {produtosFiltrados.map(produto => (
+            <div key={produto._id} className="border rounded-xl p-4 shadow hover:shadow-lg transition">
+              <img 
+                src={produto.imageUrl} 
+                alt={produto.name} 
+                className="w-full h-48 object-cover rounded-md mb-3"
+                onError={(e) => {
+                  e.target.src = 'https://via.placeholder.com/300x200?text=Produto+sem+imagem';
+                }}
+              />
+              <h2 className="text-lg font-semibold">{produto.name}</h2>
+              <p className="text-sm text-gray-600 line-clamp-2">{produto.description}</p>
+              <p className="mt-2 font-bold text-green-600">
+                R$ {produto.price.toFixed(2).replace('.', ',')}
+              </p>
+              
+              <Link to={`/produto/${produto._id}`}>
+                <button className="mt-3 px-4 py-2 bg-black text-white rounded w-full hover:bg-gray-800 transition-colors">
+                  Ver Detalhes
+                </button>
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
