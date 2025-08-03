@@ -14,7 +14,7 @@ const client = new MercadoPagoConfig({
 
 // Strict Item Validation
 const validateItems = (items) => {
-  if (!Array.isArray(items) return false;
+  if (!Array.isArray(items)) return false;
   if (items.length === 0 || items.length > 100) return false;
   
   return items.every(item => (
@@ -24,7 +24,7 @@ const validateItems = (items) => {
     Number.isInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 999 &&
     (!item.description || typeof item.description === 'string') &&
     (!item.picture_url || typeof item.picture_url === 'string')
-  );
+  ));
 };
 
 // Create Payment Preference
