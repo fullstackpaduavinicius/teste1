@@ -9,7 +9,13 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-// Enhanced Security Configurations
+// === ✅ Helmet com fallback seguro e filtro de valores falsy ===
+const connectSrcList = [
+  "'self'",
+  process.env.BACKEND_URL || 'https://mceletrobike-backend.onrender.com',
+  'https://api.mercadopago.com'
+].filter(Boolean);
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -17,13 +23,13 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.mercadopago.com'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'https://*.mercadopago.com'],
-      connectSrc: ["'self'", process.env.BACKEND_URL, 'https://api.mercadopago.com']
+      connectSrc: connectSrcList
     }
   }
 }));
 app.disable('x-powered-by');
 
-// Production-Grade CORS Configuration
+// === CORS config ===
 const corsOptions = {
   origin: [
     process.env.FRONTEND_URL,
@@ -50,7 +56,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Strict Rate Limiting
+// === Rate limiting ===
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -64,18 +70,17 @@ const apiLimiter = rateLimit({
     });
   }
 });
-
 app.use('/api/', apiLimiter);
 
-// Body Parser with Size Limit
+// === Body parser ===
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// API Routes
+// === Routes ===
 app.use("/api/produtos", productRoutes);
 app.use("/api/pagamento", paymentRoutes);
 
-// Enhanced Health Check Endpoint
+// === Health check ===
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
@@ -86,7 +91,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Production Error Handling
+// === Error handler ===
 app.use((err, req, res, next) => {
   console.error('Server Error:', {
     timestamp: new Date().toISOString(),
@@ -102,7 +107,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MongoDB Connection with Retry Logic
+// === MongoDB connection ===
 const connectWithRetry = () => {
   mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -121,13 +126,13 @@ const connectWithRetry = () => {
 
 connectWithRetry();
 
-// Server Initialization
+// === Start server ===
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
 
-// Graceful Shutdown
+// === Graceful shutdown ===
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
