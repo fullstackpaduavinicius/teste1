@@ -7,7 +7,6 @@ const Carrinho = () => {
   const { itens, removerItem, atualizarQuantidade, limparCarrinho } = useCarrinhoStore();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
 
   const calcularTotal = () => {
@@ -15,81 +14,75 @@ const Carrinho = () => {
   };
 
   const finalizarPedido = async () => {
-  setError(null);
-  setSuccess(null);
-  
-  if (itens.length === 0) {
-    setError("Seu carrinho está vazio");
-    return;
-  }
+    setError(null);
+    
+    if (itens.length === 0) {
+      setError("Seu carrinho está vazio");
+      return;
+    }
 
-  setIsLoading(true);
+    setIsLoading(true);
 
-  try {
-    const produtosParaEnvio = itens.map(item => ({
-      id: item._id,
-      title: item.name.substring(0, 250),
-      unit_price: parseFloat(item.price),
-      quantity: Number(item.quantidade || 1),
-      description: item.description?.substring(0, 250) || `Produto: ${item.name}`,
-      picture_url: item.imageUrl || '',
-      category_id: item.category || 'eletronics'
-    }));
+    try {
+      const produtosParaEnvio = itens.map(item => ({
+        id: item._id,
+        title: item.name.substring(0, 250),
+        unit_price: parseFloat(item.price),
+        quantity: Number(item.quantidade || 1),
+        description: item.description?.substring(0, 250) || `Produto: ${item.name}`,
+        picture_url: item.imageUrl || '',
+        category_id: item.category || 'eletronics'
+      }));
 
-    const response = await axios.post(
-      `${import.meta.env.VITE_BACKEND_URL}/api/pagamento/create_preference`,
-      { items: produtosParaEnvio },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Request-ID": crypto.randomUUID() // Identificador único
-        },
-        timeout: 10000 // Timeout de 10 segundos
+      const response = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/api/pagamento/create_preference`,
+        { items: produtosParaEnvio },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Request-ID": crypto.randomUUID()
+          },
+          withCredentials: true,
+          timeout: 15000
+        }
+      );
+
+      if (!response.data?.init_point) {
+        throw new Error("Resposta inválida do servidor");
       }
-    );
 
-    if (!response.data?.init_point) {
-      throw new Error("Resposta inválida do servidor");
+      // Save temporary order data
+      sessionStorage.setItem('pendingOrder', JSON.stringify({
+        items: itens,
+        total: calcularTotal(),
+        preferenceId: response.data.id
+      }));
+
+      // Redirect to payment
+      window.location.href = response.data.init_point;
+
+    } catch (error) {
+      let errorMessage = "Erro ao processar pagamento";
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || 
+                     error.response.data?.error?.message || 
+                     `Erro ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
+      }
+
+      console.error("Erro no pagamento:", {
+        error: error.message,
+        response: error.response?.data,
+        timestamp: new Date().toISOString()
+      });
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Salvar dados temporários antes do redirecionamento
-    sessionStorage.setItem('pendingOrder', JSON.stringify({
-      items: itens,
-      total: calcularTotal(),
-      preferenceId: response.data.id
-    }));
-
-    // Redirecionamento seguro
-    window.location.href = import.meta.env.DEV 
-      ? response.data.sandbox_init_point 
-      : response.data.init_point;
-
-  } catch (error) {
-    let errorMessage = "Erro ao processar pagamento";
-    
-    if (error.response) {
-      // Erro da API
-      errorMessage = error.response.data?.message || 
-                   error.response.data?.error?.message || 
-                   `Erro ${error.response.status}`;
-    } else if (error.request) {
-      // Sem resposta do servidor
-      errorMessage = "Sem resposta do servidor. Verifique sua conexão.";
-    }
-
-    console.error("Erro no pagamento:", {
-      error: error.message,
-      response: error.response?.data,
-      timestamp: new Date().toISOString()
-    });
-
-    setError(errorMessage);
-    limparCarrinho(); // Limpa o carrinho em caso de erro
-    
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -104,12 +97,6 @@ const Carrinho = () => {
           >
             Fechar
           </button>
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-          {success}
         </div>
       )}
 

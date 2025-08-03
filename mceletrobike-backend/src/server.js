@@ -24,29 +24,31 @@ app.use(helmet({
 app.disable('x-powered-by');
 
 // Production-Grade CORS Configuration
-const corsWhitelist = [
-  process.env.FRONTEND_URL,
-  'https://www.mercadopago.com',
-  'https://api.mercadopago.com'
-];
-
-if (process.env.NODE_ENV === 'development') {
-  corsWhitelist.push('http://localhost:5173');
-}
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || corsWhitelist.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
+const corsOptions = {
+  origin: [
+    process.env.FRONTEND_URL,
+    'https://teste1-nine-tawny.vercel.app',
+    'http://localhost:5173',
+    'https://www.mercadopago.com',
+    'https://api.mercadopago.com'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Request-ID',
+    'x-idempotency-key',
+    'Accept'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Request-ID'],
   credentials: true,
-  maxAge: 86400
-}));
+  maxAge: 86400,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Strict Rate Limiting
 const apiLimiter = rateLimit({

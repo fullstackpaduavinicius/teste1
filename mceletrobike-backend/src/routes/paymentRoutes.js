@@ -6,7 +6,7 @@ const router = express.Router();
 const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN,
   options: {
-    timeout: 20000, // Increased timeout for production
+    timeout: 20000,
     idempotencyKey: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
     trackingId: 'mc-eletrobike'
   }
@@ -29,6 +29,11 @@ const validateItems = (items) => {
 
 // Create Payment Preference
 router.post('/create_preference', async (req, res) => {
+  // Set CORS headers explicitly
+  res.header('Access-Control-Allow-Origin', req.headers.origin || process.env.FRONTEND_URL);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-Request-ID, Content-Type, Authorization');
+
   // Production Credentials Check
   if (process.env.NODE_ENV === 'production' && process.env.MP_ACCESS_TOKEN.includes('TEST-')) {
     return res.status(500).json({
@@ -122,7 +127,6 @@ router.post('/create_preference', async (req, res) => {
     });
 
   } catch (error) {
-    // Detailed Error Logging
     console.error('Payment Error:', {
       timestamp: new Date().toISOString(),
       errorType: 'MercadoPagoAPI',
@@ -154,15 +158,12 @@ router.post('/webhook', async (req, res) => {
     const webhook = new Webhook(process.env.MP_WEBHOOK_SECRET);
     const paymentData = webhook.parse(req);
 
-    // Process payment notification
     console.log('Received payment notification:', {
       paymentId: paymentData.id,
       status: paymentData.status,
       amount: paymentData.transaction_amount,
       timestamp: new Date().toISOString()
     });
-
-    // TODO: Implement your order processing logic here
 
     res.status(200).send('OK');
   } catch (error) {
