@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL; // ← Corrigido aqui
+const API_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);

@@ -7,7 +7,7 @@ const User = require('../models/User');
 const router = express.Router();
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // ou outro provedor
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_FROM,
     pass: process.env.EMAIL_PASS
@@ -18,28 +18,32 @@ const transporter = nodemailer.createTransport({
 router.post('/register', async (req, res) => {
   const { email, password } = req.body;
 
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(400).json({ message: 'Email já cadastrado' });
+  try {
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'Email já cadastrado' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({
-    email,
-    password: hashedPassword,
-    confirmed: false
-  });
-  await user.save();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      email,
+      password: hashedPassword,
+      confirmed: false
+    });
+    await user.save();
 
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  const confirmLink = `${process.env.FRONTEND_URL}/confirmar/${token}`;
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const confirmLink = `${process.env.FRONTEND_URL}/confirmar/${token}`;
 
-  await transporter.sendMail({
-    from: `"MC ELECTROBIKE" <${process.env.EMAIL_FROM}>`,
-    to: email,
-    subject: "Confirmação de Conta",
-    html: `<p>Confirme sua conta clicando no link: <a href="${confirmLink}">${confirmLink}</a></p>`
-  });
+    await transporter.sendMail({
+      from: `"MC ELECTROBIKE" <${process.env.EMAIL_FROM}>`,
+      to: email,
+      subject: "Confirmação de Conta",
+      html: `<p>Confirme sua conta clicando no link: <a href="${confirmLink}">${confirmLink}</a></p>`
+    });
 
-  res.status(201).json({ message: 'Usuário criado. Confirme sua conta por e-mail.' });
+    res.status(201).json({ message: 'Usuário criado. Confirme sua conta por e-mail.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro no servidor' });
+  }
 });
 
 // GET /confirm/:token
@@ -53,19 +57,23 @@ router.get('/confirm/:token', async (req, res) => {
   }
 });
 
-// POST /login (com confirmação)
+// POST /login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Usuário não encontrado' });
-  if (!user.confirmed) return res.status(403).json({ message: 'Confirme seu e-mail antes de entrar.' });
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(401).json({ message: 'Usuário não encontrado' });
+    if (!user.confirmed) return res.status(403).json({ message: 'Confirme seu e-mail antes de entrar.' });
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ message: 'Senha inválida' });
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ message: 'Senha inválida' });
 
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '2h' });
-  res.json({ token });
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '2h' });
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro no servidor' });
+  }
 });
 
 module.exports = router;

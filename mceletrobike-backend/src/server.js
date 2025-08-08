@@ -1,10 +1,10 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
 const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
