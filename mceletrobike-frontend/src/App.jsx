@@ -11,6 +11,9 @@ import PagamentoFalha from './pages/PagamentoFalha';
 import PagamentoPendente from './pages/PagamentoPendente';
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+import PaginaConfirmacao from "./pages/PaginaConfirmacao";
 
 function App() {
   return (
@@ -26,7 +29,11 @@ function App() {
             <Route path="/produto/:id" element={<Produto />} />
             <Route path="/detalhe-produto/:id" element={<ProductDetail />} />
             
-            <Route path="/admin" element={<Admin />} />
+            {/* Rotas administrativas */}
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/confirmar/:token" element={<PaginaConfirmacao />} />
+            
             <Route path="/loja" element={<Loja />} />
             <Route path="/carrinho" element={<Carrinho />} />
             

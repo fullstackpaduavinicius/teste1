@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const authRoutes = require('./routes/authRoutes'); // Added auth routes import
 
 const app = express();
 
@@ -72,9 +73,10 @@ app.use('/api/', apiLimiter);
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// ** IMPORTANTISSIMO: use rotas SOMENTE com caminhos relativos **
+// Routes
 app.use('/api/produtos', productRoutes);
 app.use('/api/pagamento', paymentRoutes);
+app.use('/api/auth', authRoutes); // Added auth routes
 
 // Health check simples
 app.get('/api/status', (req, res) => {
