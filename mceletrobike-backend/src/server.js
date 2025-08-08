@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
-const authRoutes = require('./routes/authRoutes'); // Added auth routes import
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -31,29 +31,31 @@ app.use(helmet({
 }));
 app.disable('x-powered-by');
 
-// Configurar CORS
+// ✅ CORS configurado corretamente
+const allowedOrigins = [
+  'https://teste1-nine-tawny.vercel.app',
+  'http://localhost:5173'
+];
+
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL,
-    'https://teste1-nine-tawny.vercel.app',
-    'http://localhost:5173',
-    'https://www.mercadopago.com',
-    'https://api.mercadopago.com'
-  ].filter(Boolean),
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID',
-    'x-idempotency-key', 'Accept'
-  ],
-  exposedHeaders: ['Content-Length', 'X-Request-ID'],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  maxAge: 86400,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Request-ID'],
   optionsSuccessStatus: 204
 };
+
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Limite de requisições para evitar abuso
+// ✅ Limite de requisições para evitar abuso
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -69,16 +71,16 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Parsers para JSON e URL-encoded
+// ✅ Parsers para JSON e URL-encoded
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Routes
+// ✅ Rotas da aplicação
 app.use('/api/produtos', productRoutes);
 app.use('/api/pagamento', paymentRoutes);
-app.use('/api/auth', authRoutes); // Added auth routes
+app.use('/api/auth', authRoutes);
 
-// Health check simples
+// ✅ Health check
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     status: 'online',
@@ -89,7 +91,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Tratador global de erros
+// ✅ Tratador global de erros
 app.use((err, req, res, next) => {
   console.error('Server Error:', {
     timestamp: new Date().toISOString(),
@@ -104,7 +106,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Conexão com MongoDB Atlas com retry automático
+// ✅ Conexão com MongoDB Atlas com retry automático
 const connectWithRetry = () => {
   mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -122,12 +124,13 @@ const connectWithRetry = () => {
 };
 connectWithRetry();
 
+// ✅ Inicia o servidor
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
 
-// Graceful shutdown para SIGTERM
+// ✅ Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
