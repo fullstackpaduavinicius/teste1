@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import * as Tooltip from "@radix-ui/react-tooltip";
+
 import Home from "./pages/Home";
 import ProductList from "./pages/ProductList";
 import ProductDetail from "./pages/ProductDetail";
@@ -18,33 +20,36 @@ import PaginaConfirmacao from "./pages/PaginaConfirmacao";
 function App() {
   return (
     <Router>
-      <div className="flex flex-col min-h-screen bg-prata text-grafite">
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-6">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/produtos" element={<ProductList />} />
-            
-            {/* Rotas para detalhes de produto */}
-            <Route path="/produto/:id" element={<Produto />} />
-            <Route path="/detalhe-produto/:id" element={<ProductDetail />} />
-            
-            {/* Rotas administrativas */}
-            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/confirmar/:token" element={<PaginaConfirmacao />} />
-            
-            <Route path="/loja" element={<Loja />} />
-            <Route path="/carrinho" element={<Carrinho />} />
-            
-            {/* Rotas de status de pagamento */}
-            <Route path="/sucesso" element={<PagamentoSucesso />} />
-            <Route path="/falha" element={<PagamentoFalha />} />
-            <Route path="/pendente" element={<PagamentoPendente />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      {/* Provider obrigatório para todos os tooltips do app */}
+      <Tooltip.Provider delayDuration={200} skipDelayDuration={400}>
+        <div className="flex flex-col min-h-screen bg-prata text-grafite">
+          <Header />
+          <main className="flex-grow container mx-auto px-4 py-6">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/produtos" element={<ProductList />} />
+
+              {/* Rotas para detalhes de produto */}
+              <Route path="/produto/:id" element={<Produto />} />
+              <Route path="/detalhe-produto/:id" element={<ProductDetail />} />
+
+              {/* Rotas administrativas */}
+              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/confirmar/:token" element={<PaginaConfirmacao />} />
+
+              <Route path="/loja" element={<Loja />} />
+              <Route path="/carrinho" element={<Carrinho />} />
+
+              {/* Rotas de status de pagamento */}
+              <Route path="/sucesso" element={<PagamentoSucesso />} />
+              <Route path="/falha" element={<PagamentoFalha />} />
+              <Route path="/pendente" element={<PagamentoPendente />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </Tooltip.Provider>
     </Router>
   );
 }
