@@ -9,9 +9,9 @@ const Header = () => {
         <div className="flex items-center space-x-6">
           <nav className="flex space-x-4">
             <Link to="/" className="hover:text-amarelo transition-colors">Início</Link>
-            <Link to="/produtos" className="hover:text-amarelo transition-colors">Produtos</Link>
-            <Link to="/loja" className="hover:text-amarelo transition-colors">Loja</Link>
-            <Link to="/admin" className="hover:text-amarelo transition-colors">Admin</Link>
+            <Link to="/produtos" className="hover:text-amarelo transition-colors"></Link>
+            <Link to="/loja" className="hover:text-amarelo transition-colors"></Link>
+            <Link to="/admin" className="hover:text-amarelo transition-colors"></Link>
           </nav>
           
           <div className="flex items-center gap-4">
