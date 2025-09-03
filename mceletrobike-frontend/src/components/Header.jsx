@@ -1,39 +1,125 @@
-import { Link } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { ShoppingCart } from "lucide-react";
+import { useCarrinhoStore } from "../store/carrinho";
 
-const Header = () => {
+function classNames(...c) {
+  return c.filter(Boolean).join(" ");
+}
+
+export default function Header() {
+  const itens = useCarrinhoStore((s) => s.itens);
+  const totalQty = useMemo(
+    () => (Array.isArray(itens) ? itens.reduce((acc, it) => acc + (it?.quantidade || 1), 0) : 0),
+    [itens]
+  );
+  const bumpKey = `cart-${totalQty}`;
+
   return (
-    <header className="bg-azul text-white p-4 shadow">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold">MC ELECTROBIKE</Link>
-        
-        <div className="flex items-center space-x-6">
-          <nav className="flex space-x-4">
-            <Link to="/" className="hover:text-amarelo transition-colors">Início</Link>
-            <Link to="/produtos" className="hover:text-amarelo transition-colors"></Link>
-            <Link to="/loja" className="hover:text-amarelo transition-colors"></Link>
-            <Link to="/admin" className="hover:text-amarelo transition-colors"></Link>
+    <header className="bg-azul text-white">
+      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+        <Link to="/" className="text-xl sm:text-2xl font-extrabold tracking-tight">
+          MC ELECTROBIKE
+        </Link>
+
+        <div className="flex items-center gap-4">
+          {/* Navegação (somente Admin visível) */}
+          <nav className="hidden sm:flex items-center gap-4">
+            {/* 
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
+              }
+            >
+              Início
+            </NavLink>
+
+            <NavLink
+              to="/produtos"
+              className={({ isActive }) =>
+                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
+              }
+            >
+              Produtos
+            </NavLink>
+
+            <NavLink
+              to="/loja"
+              className={({ isActive }) =>
+                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
+              }
+            >
+              Loja
+            </NavLink>
+            */}
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                classNames(
+                  "px-3 py-2 rounded-lg transition-colors",
+                  isActive ? "bg-white text-azul" : "hover:text-amarelo"
+                )
+              }
+            >
+              Admin
+            </NavLink>
           </nav>
-          
-          <div className="flex items-center gap-4">
-            <Link to="/admin">
-              <button className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors">
-                Admin
-              </button>
-            </Link>
-            
-            <Link to="/carrinho">
-              <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-                </svg>
-                Ver Carrinho
-              </button>
-            </Link>
-          </div>
+
+          {/* Botão do Carrinho */}
+          <Tooltip.Provider delayDuration={150}>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Link to="/carrinho" aria-label={`Ir para o carrinho (${totalQty} itens)`}>
+                  <motion.button
+                    key={bumpKey}
+                    initial={{ scale: 1 }}
+                    animate={{ scale: [1, 1.08, 1] }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                    className={classNames(
+                      "relative inline-flex items-center gap-2 rounded-xl",
+                      "bg-white text-azul hover:brightness-110",
+                      "px-3 sm:px-4 py-2 font-semibold shadow-soft border border-white/10"
+                    )}
+                  >
+                    <ShoppingCart size={18} />
+                    <span className="hidden sm:inline">Carrinho</span>
+
+                    {/* badge */}
+                    <span
+                      className={classNames(
+                        "absolute -top-2 -right-2 min-w-[22px] h-[22px]",
+                        "rounded-full bg-amarelo text-grafite text-xs font-extrabold",
+                        "flex items-center justify-center px-1 shadow"
+                      )}
+                      aria-hidden="true"
+                    >
+                      {totalQty > 99 ? "99+" : totalQty}
+                    </span>
+
+                    {/* ping sutil */}
+                    <span
+                      key={`ping-${bumpKey}`}
+                      className="pointer-events-none absolute -top-2 -right-2 inline-flex h-[22px] w-[22px] rounded-full"
+                    >
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-amarelo opacity-75 animate-ping"></span>
+                    </span>
+
+                    <span className="sr-only" aria-live="polite">
+                      {totalQty} itens no carrinho
+                    </span>
+                  </motion.button>
+                </Link>
+              </Tooltip.Trigger>
+              <Tooltip.Content sideOffset={8} className="rounded-md bg-grafite text-white px-2 py-1 text-xs">
+                {totalQty === 0 ? "Carrinho vazio" : `${totalQty} ${totalQty === 1 ? "item" : "itens"} no carrinho`}
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         </div>
       </div>
     </header>
   );
-};
-
-export default Header;
+}

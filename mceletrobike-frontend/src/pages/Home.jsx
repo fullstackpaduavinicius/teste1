@@ -1,4 +1,3 @@
-// src/pages/Home.jsx
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +7,8 @@ import * as Tabs from "@radix-ui/react-tabs";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ShoppingCart, ArrowRight, BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useCarrinhoStore } from "../store/carrinho";
+import ProductQuickView from "../components/ProductQuickView";
 
 /* ------------------------- helpers ------------------------- */
 const currency = (value) => {
@@ -17,7 +18,7 @@ const currency = (value) => {
 
 const apiUrl = (() => {
   const base = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");
-  return base ? `${base}/api/produtos` : "/api/produtos"; // usa proxy do Vite se VITE_BACKEND_URL não estiver setado
+  return base ? `${base}/api/produtos` : "/api/produtos";
 })();
 
 /* ---------------------- data fetching ---------------------- */
@@ -39,7 +40,7 @@ function CardSkeleton() {
 }
 
 /* ---------------------- UI: ProductCard -------------------- */
-function ProductCard({ produto, onAdd }) {
+function ProductCard({ produto, onAdd, onQuickView }) {
   const img =
     produto?.imageUrl ||
     "https://via.placeholder.com/600x400?text=Produto+sem+imagem";
@@ -68,11 +69,12 @@ function ProductCard({ produto, onAdd }) {
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-2">
-          <Link to={`/produto/${produto?._id}`}>
-            <button className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-2 hover:bg-black/5 transition">
-              Detalhes <ArrowRight size={16} />
-            </button>
-          </Link>
+          <button
+            onClick={() => onQuickView?.(produto)}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-2 hover:bg-black/5 transition"
+          >
+            Detalhes
+          </button>
 
           <Tooltip.Root delayDuration={150}>
             <Tooltip.Trigger asChild>
@@ -98,26 +100,27 @@ function ProductCard({ produto, onAdd }) {
 
 /* ------------------------- Página Home --------------------- */
 export default function Home() {
+  const addToCart = useCarrinhoStore((s) => s.adicionarItem ?? s.adicionar);
+
   const { data: produtos = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["produtos"],
     queryFn: fetchProdutos,
     staleTime: 2 * 60 * 1000,
   });
 
-  // categorias dinâmicas a partir dos produtos (com "Todos" no início)
   const categorias = useMemo(() => {
-    const base = Array.from(
-      new Set(produtos.map((p) => p?.category).filter(Boolean))
-    );
+    const base = Array.from(new Set(produtos.map((p) => p?.category).filter(Boolean)));
     return ["Todos", ...base];
   }, [produtos]);
 
   const [categoriaAtiva, setCategoriaAtiva] = useState("Todos");
 
   const produtosFiltrados =
-    categoriaAtiva === "Todos"
-      ? produtos
-      : produtos.filter((p) => p?.category === categoriaAtiva);
+    categoriaAtiva === "Todos" ? produtos : produtos.filter((p) => p?.category === categoriaAtiva);
+
+  // estado do Quick View
+  const [qvOpen, setQvOpen] = useState(false);
+  const [qvProduct, setQvProduct] = useState(null);
 
   /* --------------------- estados de carregamento/erro -------------------- */
   if (isLoading) {
@@ -163,34 +166,17 @@ export default function Home() {
   /* --------------------------- render principal -------------------------- */
   return (
     <div className="space-y-10">
-      {/* Hero curto e objetivo */}
+      {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-azul via-grafite to-black text-white p-8 md:p-12">
         <div className="max-w-3xl">
           <span className="inline-block text-xs tracking-widest uppercase bg-white/10 px-3 py-1 rounded-full mb-4">
             Entrega em todo o Brasil • Garantia oficial
           </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">
-            MC ELECTROBIKE
-            <span className="block text-amarelo">Escolha e receba em casa.</span>
-          </h1>
-          <p className="mt-3 text-white/85">
-            Linha completa de motos elétricas com pronta entrega, suporte e peças.
-          </p>
-
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            <Link
-              to="/produtos"
-              className="inline-flex items-center gap-2 rounded-xl bg-white text-grafite px-5 py-3 font-semibold hover:brightness-95"
-            >
-              Ver todos os modelos <ArrowRight size={18} />
-            </Link>
-          </div>
         </div>
-
         <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-amarelo/20 blur-3xl" />
       </section>
 
-      {/* Loja embutida com Tabs de categorias */}
+      {/* Loja embutida */}
       <section>
         <div className="flex items-end justify-between mb-4">
           <div>
@@ -202,11 +188,7 @@ export default function Home() {
           </Link>
         </div>
 
-        <Tabs.Root
-          value={categoriaAtiva}
-          onValueChange={setCategoriaAtiva}
-          className="w-full"
-        >
+        <Tabs.Root value={categoriaAtiva} onValueChange={setCategoriaAtiva} className="w-full">
           <Tabs.List className="inline-flex rounded-xl border border-black/10 bg-white p-1 mb-5">
             {categorias.map((cat) => {
               const count =
@@ -226,20 +208,22 @@ export default function Home() {
             })}
           </Tabs.List>
 
-          {/* Conteúdo único: mudamos só o filtro via estado */}
           <Tabs.Content value={categoriaAtiva}>
             {produtosFiltrados.length === 0 ? (
-              <p className="text-center text-black/50 py-8">
-                Nenhum produto encontrado.
-              </p>
+              <p className="text-center text-black/50 py-8">Nenhum produto encontrado.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {produtosFiltrados.map((produto) => (
                   <ProductCard
                     key={produto?._id}
                     produto={produto}
-                    onAdd={() => {
-                      // Aqui você pode integrar com seu Zustand do carrinho
+                    onQuickView={(p) => {
+                      setQvProduct(p);
+                      setQvOpen(true);
+                    }}
+                    onAdd={(p) => {
+                      addToCart(p, 1);
+                      toast.success(`${p.name} adicionado ao carrinho`);
                     }}
                   />
                 ))}
@@ -249,21 +233,13 @@ export default function Home() {
         </Tabs.Root>
       </section>
 
-      {/* Banner final curto */}
-      <section className="rounded-3xl bg-prata p-7 flex flex-col md:flex-row items-center gap-4">
-        <div className="flex-1">
-          <h3 className="text-2xl font-bold text-azul">Pronto para economizar no combustível?</h3>
-          <p className="text-black/70">
-            Garanta já o seu modelo elétrico com condições facilitadas.
-          </p>
-        </div>
-        <Link
-          to="/produtos"
-          className="inline-flex items-center gap-2 rounded-xl bg-azul text-white px-5 py-3 font-semibold hover:brightness-110"
-        >
-          Explorar modelos <ArrowRight size={18} />
-        </Link>
-      </section>
+      {/* Quick View Modal */}
+      <ProductQuickView
+        open={qvOpen}
+        onOpenChange={setQvOpen}
+        productId={qvProduct?._id}
+        initialProduct={qvProduct}
+      />
     </div>
   );
 }

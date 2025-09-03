@@ -1,6 +1,4 @@
-// src/pages/ProductList.jsx
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -21,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { useCarrinhoStore } from "../store/carrinho";
 import { useDocumentHead } from "../lib/useDocumentHead";
+import ProductQuickView from "../components/ProductQuickView";
 
 /* ----------------------------- helpers ----------------------------- */
 const currency = (n) =>
@@ -57,7 +56,7 @@ function CardSkeleton() {
 }
 
 /* --------------------------- Product Card -------------------------- */
-function ProductCard({ p, onAdd }) {
+function ProductCard({ p, onAdd, onQuickView }) {
   const img = p?.imageUrl || "https://via.placeholder.com/600x400?text=Produto+sem+imagem";
   return (
     <motion.div
@@ -83,11 +82,12 @@ function ProductCard({ p, onAdd }) {
         <div className="mt-2 text-azul text-lg font-bold">{currency(p?.price)}</div>
 
         <div className="mt-auto grid grid-cols-2 gap-2">
-          <Link to={`/produto/${p?._id}`}>
-            <button className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-2 hover:bg-black/5 transition">
-              Detalhes
-            </button>
-          </Link>
+          <button
+            onClick={() => onQuickView?.(p)}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-2 hover:bg-black/5 transition"
+          >
+            Detalhes
+          </button>
           <Tooltip.Root delayDuration={150}>
             <Tooltip.Trigger asChild>
               <button
@@ -143,20 +143,17 @@ export default function ProductList() {
   }, [produtos]);
 
   const [precoRange, setPrecoRange] = useState([priceBounds[0], priceBounds[1]]);
-
-  // quando carregar ou mudar bounds, sincroniza slider
   useEffect(() => {
     if (!isNaN(priceBounds[0]) && !isNaN(priceBounds[1])) {
       setPrecoRange([priceBounds[0], priceBounds[1]]);
     }
   }, [priceBounds[0], priceBounds[1]]); // eslint-disable-line
 
-  const [ordem, setOrdem] = useState("relevance"); // relevance | price_asc | price_desc | name_az | name_za
+  const [ordem, setOrdem] = useState("relevance");
 
   const filtrados = useMemo(() => {
     let out = produtos.slice();
 
-    // busca
     if (debouncedBusca.trim()) {
       const q = debouncedBusca.toLowerCase();
       out = out.filter((p) => {
@@ -166,19 +163,16 @@ export default function ProductList() {
       });
     }
 
-    // categoria
     if (categoria !== "Todos") {
       out = out.filter((p) => p?.category === categoria);
     }
 
-    // preço
     const [minP, maxP] = precoRange;
     out = out.filter((p) => {
       const val = Number(p?.price) || 0;
       return val >= (Number(minP) || 0) && val <= (Number(maxP) || 0);
     });
 
-    // ordenação
     switch (ordem) {
       case "price_asc":
         out.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
@@ -190,7 +184,7 @@ export default function ProductList() {
         out.sort((a, b) => String(a.name).localeCompare(String(b.name), "pt-BR"));
         break;
       case "name_za":
-        out.sort((a, b) => String(b.name).localeCompare(String(a.name), "pt-BR"));
+        out.sort((b, a) => String(a.name).localeCompare(String(b.name), "pt-BR"));
         break;
       default:
         break;
@@ -203,11 +197,15 @@ export default function ProductList() {
   const [page, setPage] = useState(1);
   const perPage = 12;
   const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage));
-  useEffect(() => setPage(1), [debouncedBusca, categoria, precoRange, ordem]); // reset ao mudar filtros
+  useEffect(() => setPage(1), [debouncedBusca, categoria, precoRange, ordem]); // reset quando filtros mudam
   const pageItems = useMemo(
     () => filtrados.slice((page - 1) * perPage, page * perPage),
     [filtrados, page]
   );
+
+  // estado do Quick View
+  const [qvOpen, setQvOpen] = useState(false);
+  const [qvProduct, setQvProduct] = useState(null);
 
   /* ---------------------------- estados de UI --------------------------- */
   if (isLoading) {
@@ -305,9 +303,9 @@ export default function ProductList() {
         </div>
       </div>
 
-      {/* Controles desktop */}
-      <div className="hidden md:grid md:grid-cols-[260px_1fr] gap-6">
-        <aside className="rounded-2xl bg-white border border-black/10 p-4 shadow-soft h-fit sticky top-6">
+      {/* Controles + Grid */}
+      <div className="grid md:grid-cols-[260px_1fr] gap-6">
+        <aside className="hidden md:block rounded-2xl bg-white border border-black/10 p-4 shadow-soft h-fit sticky top-6">
           <Filters
             categorias={categorias}
             categoria={categoria}
@@ -326,16 +324,9 @@ export default function ProductList() {
             addToCart(p, 1);
             toast.success(`${p.name} adicionado ao carrinho`);
           }}
-        />
-      </div>
-
-      {/* Mobile grid */}
-      <div className="md:hidden">
-        <ProductsGrid
-          itens={pageItems}
-          onAdd={(p) => {
-            addToCart(p, 1);
-            toast.success(`${p.name} adicionado ao carrinho`);
+          onQuickView={(p) => {
+            setQvProduct(p);
+            setQvOpen(true);
           }}
         />
       </div>
@@ -379,6 +370,14 @@ export default function ProductList() {
           </button>
         </div>
       )}
+
+      {/* Quick View Modal */}
+      <ProductQuickView
+        open={qvOpen}
+        onOpenChange={setQvOpen}
+        productId={qvProduct?._id}
+        initialProduct={qvProduct}
+      />
     </div>
   );
 }
@@ -471,13 +470,12 @@ function Filters({
   );
 }
 
-function ProductsGrid({ itens, onAdd }) {
+function ProductsGrid({ itens, onAdd, onQuickView }) {
   if (!itens?.length) return null;
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       {itens.map((p) => (
-        <ProductCard key={p?._id} p={p} onAdd={onAdd} />
+        <ProductCard key={p?._id} p={p} onAdd={onAdd} onQuickView={onQuickView} />
       ))}
     </div>
   );
