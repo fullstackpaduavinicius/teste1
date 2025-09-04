@@ -1,13 +1,12 @@
 import { NavLink, Link } from "react-router-dom";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, User, LogOut } from "lucide-react";
 import { useCarrinhoStore } from "../store/carrinho";
+import { useAuth } from "../store/auth"; // precisa existir
 
-function classNames(...c) {
-  return c.filter(Boolean).join(" ");
-}
+function classNames(...c) { return c.filter(Boolean).join(" "); }
 
 export default function Header() {
   const itens = useCarrinhoStore((s) => s.itens);
@@ -17,6 +16,19 @@ export default function Header() {
   );
   const bumpKey = `cart-${totalQty}`;
 
+  // seletores estáveis do Zustand
+  const user   = useAuth((s) => s.user);
+  const me     = useAuth((s) => s.me);
+  const logout = useAuth((s) => s.logout);
+
+  // restaura sessão 1x ao montar
+  useEffect(() => {
+    me();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const firstName = user?.name ? user.name.split(" ")[0] : "";
+
   return (
     <header className="bg-azul text-white">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -24,37 +36,9 @@ export default function Header() {
           MC ELECTROBIKE
         </Link>
 
-        <div className="flex items-center gap-4">
-          {/* Navegação (somente Admin visível) */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Navegação (Admin) */}
           <nav className="hidden sm:flex items-center gap-4">
-            {/* 
-            <NavLink
-              to="/"
-              className={({ isActive }) =>
-                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
-              }
-            >
-              Início
-            </NavLink>
-
-            <NavLink
-              to="/produtos"
-              className={({ isActive }) =>
-                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
-              }
-            >
-              Produtos
-            </NavLink>
-
-            <NavLink
-              to="/loja"
-              className={({ isActive }) =>
-                classNames("px-3 py-2 rounded-lg transition-colors", isActive ? "bg-white text-azul" : "hover:text-amarelo")
-              }
-            >
-              Loja
-            </NavLink>
-            */}
             <NavLink
               to="/admin"
               className={({ isActive }) =>
@@ -68,7 +52,44 @@ export default function Header() {
             </NavLink>
           </nav>
 
-          {/* Botão do Carrinho */}
+          {/* Área cliente */}
+          {!user ? (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/entrar"
+                className="px-3 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition-colors"
+              >
+                Entrar
+              </Link>
+              <Link
+                to="/criar-conta"
+                className="px-3 py-2 rounded-lg bg-white text-azul font-semibold hover:brightness-110 transition"
+              >
+                Criar conta
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/conta"
+                className="px-3 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition-colors flex items-center gap-2"
+                title="Minha conta"
+              >
+                <User size={18} />
+                <span className="hidden sm:inline">Olá, {firstName}</span>
+              </Link>
+              <button
+                onClick={logout}
+                className="px-3 py-2 rounded-lg bg-white text-azul font-semibold hover:brightness-110 transition flex items-center gap-2"
+                title="Sair"
+              >
+                <LogOut size={18} />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            </div>
+          )}
+
+          {/* Carrinho */}
           <Tooltip.Provider delayDuration={150}>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -113,8 +134,13 @@ export default function Header() {
                   </motion.button>
                 </Link>
               </Tooltip.Trigger>
-              <Tooltip.Content sideOffset={8} className="rounded-md bg-grafite text-white px-2 py-1 text-xs">
-                {totalQty === 0 ? "Carrinho vazio" : `${totalQty} ${totalQty === 1 ? "item" : "itens"} no carrinho`}
+              <Tooltip.Content
+                sideOffset={8}
+                className="rounded-md bg-grafite text-white px-2 py-1 text-xs"
+              >
+                {totalQty === 0
+                  ? "Carrinho vazio"
+                  : `${totalQty} ${totalQty === 1 ? "item" : "itens"} no carrinho`}
               </Tooltip.Content>
             </Tooltip.Root>
           </Tooltip.Provider>
